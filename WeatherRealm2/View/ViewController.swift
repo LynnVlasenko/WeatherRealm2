@@ -31,8 +31,25 @@ private enum Constants {
 class ViewController: UIViewController {
     
     var realm: Realm? //об'єкт Realm, який відповідає за збереження та читання даних
-    private var weathers = [WeatherData]()
-    let newWeather = WeatherData()
+    let newWeather = WeatherData() //об'єкт моделі даних для Realm
+    //змінна, що запускає роботу завантаження в БД. Коли в неї потрапляють дані з API, Починається додавання їх до об'єкту моделі даних, потім завантаження їх в Realm і виведення БД в консоль, після завантаження.
+    private var weatherData = [WeatherModel]() {
+        didSet{
+            DispatchQueue.main.async { //Оо.. з діспатч моментально відпрацьовує UI
+                self.createData(self.cityTextField.text!)
+                print(self.weatherData)
+                sleep(2) //якщо не робити сліп тут, то не встигає відпрацювати функція - і прінтує null.
+                print(self.newWeather)
+                self.writeToRealm(newWeather: self.newWeather)
+                print("storing")
+                sleep(2)
+                print("retrieving")
+                self.readFromRealm()
+            }
+        }
+    }
+    
+    // MARK: - UI
     
     private let cityTextField: UITextField = {
         let textField = UITextField()
@@ -66,7 +83,6 @@ class ViewController: UIViewController {
 
     private let weatherDescriptionLabel: UILabel = {
         let label = UILabel()
-        //label.textColor = .systemBackground
         label.font = UIFont(name: "Avenir-LightOblique", size: 30)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -74,7 +90,6 @@ class ViewController: UIViewController {
 
     private let pressureLabel: UILabel = {
         let label = UILabel()
-        //label.textColor = .systemBackground
         label.font = UIFont(name: "Avenir-Medium", size: 20)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -82,7 +97,6 @@ class ViewController: UIViewController {
 
     private let humidityLabel: UILabel = {
         let label = UILabel()
-        //label.textColor = .systemBackground
         label.font = UIFont(name: "Avenir-Medium", size: 20)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -90,7 +104,6 @@ class ViewController: UIViewController {
 
     private let windSpeedLabel: UILabel = {
         let label = UILabel()
-        //label.textColor = .systemBackground
         label.font = UIFont(name: "Avenir-Medium", size: 20)
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -102,7 +115,6 @@ class ViewController: UIViewController {
         button.setTitleColor(.blue, for: .normal)
         button.setTitleColor(.systemGray4, for: .highlighted)
         button.backgroundColor = .systemBlue
-        //button.frame = CGRect(x: 230, y: 50, width: 90, height: 40)
         button.layer.cornerRadius = 8
         button.layer.shadowRadius = 5
         button.layer.shadowOpacity = 0.2
@@ -144,6 +156,8 @@ class ViewController: UIViewController {
         navigationController?.navigationBar.tintColor = .systemYellow // Чомусь не спрацьовує колір
    }
     
+    // MARK: - Actions
+    
     @objc func getWeather() {
         let city = cityTextField.text
         if let city = city {
@@ -153,23 +167,24 @@ class ViewController: UIViewController {
                 let cityWithSpaces = allowSpaces(city)
                 
                 getWeatherFromNetwork(cityWithSpaces)
-                sleep(2)
+                //sleep(2)
                 //тут помилка, на виклик функції яка зберігає дані в модель.
-                createData(cityWithSpaces)
+                //createData(cityWithSpaces)
                 //якщо просто зберігати введене в текст філд - то працює.
                 //newWeather.nameCity = city
             }
         }
-        sleep(3)
-        self.weathers.append(newWeather)
-        self.writeToRealm(newWeather: newWeather)
-        print("storing")
-        sleep(1)
-        print("retrieving")
-        readFromRealm()
+        //sleep(2)
+//        self.weathers.append(newWeather)
+//        self.writeToRealm(newWeather: newWeather)
+//        print("storing")
+//        sleep(1)
+//        print("retrieving")
+//        readFromRealm()
     }
     
     // MARK: - Constraints
+    
     private func applyConstraints() {
         let cityTextFieldConstraints = [
             cityTextField.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -227,6 +242,7 @@ class ViewController: UIViewController {
     
     // MARK: - Private
     
+    //load data from API
     private func getWeatherFromNetwork(_ city: String) {
         Network.shared.getWeather(city) { [weak self] (weather, error) in
             DispatchQueue.main.async {
@@ -248,6 +264,9 @@ class ViewController: UIViewController {
                 if let speed = weather?.wind?.speed {
                     self?.windSpeedLabel.text = Constants.windSpeed + String(speed) + " m/s"
                 }
+                if let weather = weather { //зберігає опціональні значення, ніяк не можу достукатися до значень(if let не допомагає)
+                    self!.weatherData.append(weather)
+                }
             }
         }
     }
@@ -265,6 +284,7 @@ class ViewController: UIViewController {
         windSpeedLabel.text = nil
     }
     
+    //load data for Realm model
     private func createData(_ city: String) {
         Network.shared.getWeather(city) { [weak self]  (weather, error)  in
             DispatchQueue.global(qos: .background).async {
@@ -312,7 +332,7 @@ class ViewController: UIViewController {
         }
     }
 
-    //запис
+    //запис з моделі в Realm
     private func writeToRealm(newWeather: WeatherData) {
         do {
             try realm?.write({
@@ -328,7 +348,7 @@ class ViewController: UIViewController {
         let result = realm?.objects(WeatherData.self)
         if let result = result {
             for weather in result {
-                weathers.append(weather)
+                //weathers.append(weather)
                 print(weather)
             }
         }
