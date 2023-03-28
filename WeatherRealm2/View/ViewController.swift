@@ -151,13 +151,16 @@ class ViewController: UIViewController {
                 setDefaultTextValues()
             } else {
                 let cityWithSpaces = allowSpaces(city)
+                
                 getWeatherFromNetwork(cityWithSpaces)
+                sleep(2)
                 //тут помилка, на виклик функції яка зберігає дані в модель.
-                //createData(cityWithSpaces)
+                createData(cityWithSpaces)
                 //якщо просто зберігати введене в текст філд - то працює.
-                newWeather.nameCity = city
+                //newWeather.nameCity = city
             }
         }
+        sleep(3)
         self.weathers.append(newWeather)
         self.writeToRealm(newWeather: newWeather)
         print("storing")
@@ -264,7 +267,7 @@ class ViewController: UIViewController {
     
     private func createData(_ city: String) {
         Network.shared.getWeather(city) { [weak self]  (weather, error)  in
-            DispatchQueue.global().async {
+            DispatchQueue.global(qos: .background).async {
                 if let city = weather?.name {
                     self?.newWeather.nameCity = city
                 }
