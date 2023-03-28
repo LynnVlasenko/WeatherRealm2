@@ -9,14 +9,13 @@ import UIKit
 import RealmSwift
 
 //Model for Realm
-class WeatherData: Object {
+class WeatherRealm: Object {
     @Persisted var nameCity: String?
     @Persisted var descriptions: String?
-    @Persisted var icons: String?
     @Persisted var temperatures: Float?
+    @Persisted var feelsLike: Float?
     @Persisted var pressures: Int?
     @Persisted var humidities: Int?
-    @Persisted var feelsLike: Float?
     @Persisted var windSpeed: Float?
 }
 
@@ -31,24 +30,7 @@ private enum Constants {
 class ViewController: UIViewController {
     
     var realm: Realm? //об'єкт Realm, який відповідає за збереження та читання даних
-    let newWeather = WeatherData() //об'єкт моделі даних для Realm
-    //змінна, що запускає роботу завантаження в БД. Коли в неї потрапляють дані з API, Починається додавання їх до об'єкту моделі даних, потім завантаження їх в Realm і виведення БД в консоль, після завантаження.
-    private var weatherData = [WeatherModel]() {
-        didSet{
-            DispatchQueue.main.async { //Оо.. з діспатч моментально відпрацьовує UI
-                let cityWithSpaces = self.allowSpaces(self.cityTextField.text!)
-                self.createData(cityWithSpaces)
-                print(self.weatherData)
-                sleep(2) //якщо не робити сліп тут, то не встигає відпрацювати функція - і прінтує null.
-                print(self.newWeather)
-                self.writeToRealm(newWeather: self.newWeather)
-                print("storing")
-                sleep(2)
-                print("retrieving")
-                self.readFromRealm()
-            }
-        }
-    }
+    var weatherData: Results<WeatherRealm>?
     
     // MARK: - UI
     
@@ -168,20 +150,8 @@ class ViewController: UIViewController {
                 let cityWithSpaces = allowSpaces(city)
                 
                 getWeatherFromNetwork(cityWithSpaces)
-                //sleep(2)
-                //тут помилка, на виклик функції яка зберігає дані в модель.
-                //createData(cityWithSpaces)
-                //якщо просто зберігати введене в текст філд - то працює.
-                //newWeather.nameCity = city
             }
         }
-        //sleep(2)
-//        self.weathers.append(newWeather)
-//        self.writeToRealm(newWeather: newWeather)
-//        print("storing")
-//        sleep(1)
-//        print("retrieving")
-//        readFromRealm()
     }
     
     // MARK: - Constraints
@@ -265,9 +235,37 @@ class ViewController: UIViewController {
                 if let speed = weather?.wind?.speed {
                     self?.windSpeedLabel.text = Constants.windSpeed + String(speed) + " m/s"
                 }
-                if let weather = weather { //зберігає опціональні значення, ніяк не можу достукатися до значень(if let не допомагає)
-                    self!.weatherData.append(weather)
+            }
+            
+            DispatchQueue.main.async {
+                guard let strongSelf = self else { return }
+                guard let cityName = weather?.name else { return }
+                guard let descriptions = weather?.name?.description else { return }
+                guard let temperatures = weather?.main?.temperature else { return }
+                guard let feelsLike = weather?.main?.feels_like else { return }
+                guard let pressures = weather?.main?.pressure else { return }
+                guard let humidities = weather?.main?.humidity else { return }
+                guard let windSpeed = weather?.wind?.speed else { return }
+                
+                // create & set
+                let new = WeatherRealm()
+                new.nameCity = cityName
+                new.descriptions = descriptions
+                new.temperatures = temperatures
+                new.feelsLike = feelsLike
+                new.pressures = pressures
+                new.humidities = humidities
+                new.windSpeed = windSpeed
+                
+                // add
+                do {
+                    try strongSelf.realm!.write({
+                        strongSelf.realm!.add(new)
+                    })
+                } catch {
+                    print ("Saving realm error: \(error.localizedDescription)")
                 }
+                print (strongSelf.realm!.objects(WeatherRealm.self))
             }
         }
     }
@@ -285,44 +283,15 @@ class ViewController: UIViewController {
         windSpeedLabel.text = nil
     }
     
-    //load data for Realm model
-    private func createData(_ city: String) {
-        Network.shared.getWeather(city) { [weak self]  (weather, error)  in
-            DispatchQueue.global(qos: .background).async {
-                if let city = weather?.name {
-                    self?.newWeather.nameCity = city
-                }
-                if let temperature = weather?.main?.temperature {
-                    self?.newWeather.temperatures = temperature
-                }
-                if let feels = weather?.main?.feels_like {
-                    self?.newWeather.feelsLike = feels
-                }
-                if let longWeather = weather?.weather?[0].description {
-                    self?.newWeather.descriptions = longWeather
-                }
-                if let pressure = weather?.main?.pressure {
-                    self?.newWeather.pressures = pressure
-                }
-                if let humidity = weather?.main?.humidity {
-                    self?.newWeather.humidities = humidity
-                }
-                if let speed = weather?.wind?.speed {
-                    self?.newWeather.windSpeed = speed
-                }
-            }
-        }
-    }
-    
     // MARK: - Realm setting
 
     func setupRealm() {
         //створюємо нашу кастомну конфігурацію
         let config = Realm.Configuration(
-            schemaVersion: 1,//версія конфігурації
+            schemaVersion: 6,//версія конфігурації
             //створюємо блок для міграції, який описує, що ми будемо робити при міграції БД
             migrationBlock: { migration, oldSchema in
-                if oldSchema > 1 { print("Do nothing!") } //типу коли версія БД міняється, то треба змінити schemaVersion: 2 і тут oldSchema > 2.. і так кожного разу додавати, коли мігрує БД. Якщо не змінити, то БД працювати не буде і напише, що відбулася зміна  і опише, що саме змінилося. Воно розуміє, якщо зроблена зміна в БД, в її структурі.
+                if oldSchema > 6 { print("Do nothing!") } //типу коли версія БД міняється, то треба змінити schemaVersion: 2 і тут oldSchema > 2.. і так кожного разу додавати, коли мігрує БД. Якщо не змінити, то БД працювати не буде і напише, що відбулася зміна  і опише, що саме змінилося. Воно розуміє, якщо зроблена зміна в БД, в її структурі.
             })
         //тепер треба засетити нашу конфігурацію замість дефолтної
         Realm.Configuration.defaultConfiguration = config
@@ -332,31 +301,7 @@ class ViewController: UIViewController {
             print(error.localizedDescription)
         }
     }
-
-    //запис з моделі в Realm
-    private func writeToRealm(newWeather: WeatherData) {
-        do {
-            try realm?.write({
-                realm?.add(newWeather)
-            })
-        } catch let error as NSError {
-            print(error.localizedDescription)
-        }
-    }
-
-    //зчитування
-    private func readFromRealm() {
-        let result = realm?.objects(WeatherData.self)
-        if let result = result {
-            for weather in result {
-                //weathers.append(weather)
-                print(weather)
-            }
-        }
-    }
 }
-
-
 
 // MARK: - Extensions
 
