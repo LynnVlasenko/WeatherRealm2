@@ -345,7 +345,7 @@ class ViewController: UIViewController {
 
     //зчитування
     private func readFromRealm() {
-        let result = realm?.objects(WeatherData.self)
+        let result = realm?.objects(WeatherData.self).sorted(byKeyPath: "nameCity", ascending: true)//примінила сортування даних
         if let result = result {
             for weather in result {
                 //weathers.append(weather)
