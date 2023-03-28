@@ -36,7 +36,8 @@ class ViewController: UIViewController {
     private var weatherData = [WeatherModel]() {
         didSet{
             DispatchQueue.main.async { //Оо.. з діспатч моментально відпрацьовує UI
-                self.createData(self.cityTextField.text!)
+                let cityWithSpaces = self.allowSpaces(self.cityTextField.text!)
+                self.createData(cityWithSpaces)
                 print(self.weatherData)
                 sleep(2) //якщо не робити сліп тут, то не встигає відпрацювати функція - і прінтує null.
                 print(self.newWeather)
